@@ -1,8 +1,8 @@
+import os
 from django.db import models
 from django.contrib.auth.models import User
-from datetime import datetime
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 # Create your models here.
 
 class EmailJob(models.Model):
@@ -22,7 +22,7 @@ class EmailJob(models.Model):
     smtp_server = models.CharField('发送邮件服务器(SMTP)', default='smtp.cq.sgcc.com.cn', max_length=50)
     # smtp_ssl = models.BooleanField('发送邮件服务器是否加密(SSL)', default = False)
     smtp_port = models.IntegerField('发送邮件服务器端口', default=25)
-    sender = models.EmailField('发送人邮件地址')
+    sender = models.EmailField('发送人邮件地址', default='@cq.sgcc.com.cn')
     sender_pass = models.CharField('发送人邮件密码', max_length=50)
     subject = models.CharField('发送邮件主题', max_length=200)
     content = models.TextField('发送邮件内容', max_length=500 , null=True, blank=True)
@@ -31,13 +31,14 @@ class EmailJob(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users')
 
     def user_name_property(self):
-        return self.user.first_name + ' ' + self.user.last_name
-    user_name_property.short_description = '用户'
+        return '%s(%s)' % (self.user.get_full_name(), self.user.username)
+    user_name_property.short_description = '创建人'
     full_name = property(user_name_property)
 
     
     class Meta:
-        verbose_name = 'Email任务详情'
+        ordering = ('created_date',)
+        verbose_name = 'Email任务'
         verbose_name_plural = 'Email任务列表'
 
     def __str__(self):
@@ -51,3 +52,76 @@ class ScriptFile(models.Model):
     class Meta:
         verbose_name = '执行脚本'
         verbose_name_plural = '执行脚本'
+
+    def __str__(self):
+        return os.path.split(str(self.script_file))[-1]
+
+
+
+
+class DjangoJob(models.Model):
+    name = models.CharField(max_length=255, unique=True)  # id of job
+    next_run_time = models.DateTimeField(db_index=True)
+    # Perhaps consider using PickleField down the track.
+    job_state = models.BinaryField()
+
+    def __str__(self):
+        status = 'next run at: %s' % self.next_run_time if self.next_run_time else 'paused'
+        return '%s (%s)' % (self.name, status)
+
+    class Meta:
+        ordering = ('next_run_time', )
+
+
+class DjangoJobExecution(models.Model):
+    ADDED = u"Added"
+    SENT = u"Started execution"
+    MAX_INSTANCES = u"Max instances reached!"
+    MISSED = u"Missed!"
+    MODIFIED = u"Modified!"
+    REMOVED = u"Removed!"
+    ERROR = u"Error!"
+    SUCCESS = u"Executed"
+
+    job = models.ForeignKey(DjangoJob, on_delete=models.CASCADE)
+    status = models.CharField(max_length=50, choices=[
+        [x, x]
+        for x in [ADDED, SENT, MAX_INSTANCES, MISSED, MODIFIED,
+                  REMOVED, ERROR, SUCCESS]
+    ])
+    run_time = models.DateTimeField(db_index=True)
+    duration = models.DecimalField(max_digits=15, decimal_places=2,
+                                   default=None, null=True)
+
+    started = models.DecimalField(max_digits=15, decimal_places=2,
+                                  default=None, null=True)
+    finished = models.DecimalField(max_digits=15, decimal_places=2,
+                                   default=None, null=True)
+
+    exception = models.CharField(max_length=1000, null=True)
+    traceback = models.TextField(null=True)
+
+    def html_status(self):
+        m = {
+            self.ADDED: "RoyalBlue",
+            self.SENT: "SkyBlue",
+            self.MAX_INSTANCES: "yellow",
+            self.MISSED: "yellow",
+            self.MODIFIED: "yellow",
+            self.REMOVED: "red",
+            self.ERROR: "red",
+            self.SUCCESS: "green"
+        }
+
+        return mark_safe("<p style=\"color: {}\">{}</p>".format(
+            m[self.status],
+            self.status
+        ))
+
+    def __unicode__(self):
+        return "Execution id={}, status={}, job={}".format(
+            self.id, self.status, self.job
+        )
+
+    class Meta:
+        ordering = ('-run_time', )
