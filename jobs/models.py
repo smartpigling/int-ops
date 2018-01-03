@@ -5,13 +5,28 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 # Create your models here.
 
-class EmailJob(models.Model):
+
+class DjangoJob(models.Model):
+    name = models.CharField('任务名称', max_length=255, unique=True)  # id of job
+    next_run_time = models.DateTimeField('执行时间', db_index=True)
+    # Perhaps consider using PickleField down the track.
+    job_state = models.BinaryField()
+
+    def __str__(self):
+        status = '执行时间: %s' % self.next_run_time if self.next_run_time else '暂停'
+        return '%s (%s)' % (self.name, status)
+
+    class Meta:
+        ordering = ('next_run_time', )
+
+
+class EmailJob(DjangoJob):
     TRIGGER_TYPE = (
         ('d', '时间类型(一次执行)'),
         ('i', '循环类型(多次执行)'),
         ('c', '任意类型')
     )
-    job_name = models.CharField('任务名称', max_length=100)
+    # job_name = models.CharField('任务名称', max_length=255, unique=True)
     created_date = models.DateTimeField('创建时间', default=timezone.now)
     #Trigger
     trigger_type = models.CharField('触发类型', max_length=1, choices=TRIGGER_TYPE)
@@ -27,7 +42,7 @@ class EmailJob(models.Model):
     subject = models.CharField('发送邮件主题', max_length=200)
     content = models.TextField('发送邮件内容', max_length=500 , null=True, blank=True)
     to_email = models.CharField('接收人邮件地址', max_length=250)
-    status = models.BooleanField('状态', default=False)
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='users')
 
     def user_name_property(self):
@@ -37,12 +52,11 @@ class EmailJob(models.Model):
 
     
     class Meta:
-        ordering = ('created_date',)
-        verbose_name = 'Email任务'
-        verbose_name_plural = 'Email任务列表'
+        verbose_name = '任务'
+        verbose_name_plural = '任务列表'
 
     def __str__(self):
-        return self.job_name
+        return self.name
 
 
 class ScriptFile(models.Model):
@@ -58,21 +72,6 @@ class ScriptFile(models.Model):
 
 
 
-
-class DjangoJob(models.Model):
-    name = models.CharField(max_length=255, unique=True)  # id of job
-    next_run_time = models.DateTimeField(db_index=True)
-    # Perhaps consider using PickleField down the track.
-    job_state = models.BinaryField()
-
-    def __str__(self):
-        status = 'next run at: %s' % self.next_run_time if self.next_run_time else 'paused'
-        return '%s (%s)' % (self.name, status)
-
-    class Meta:
-        ordering = ('next_run_time', )
-
-
 class DjangoJobExecution(models.Model):
     ADDED = u"Added"
     SENT = u"Started execution"
@@ -83,23 +82,23 @@ class DjangoJobExecution(models.Model):
     ERROR = u"Error!"
     SUCCESS = u"Executed"
 
-    job = models.ForeignKey(DjangoJob, on_delete=models.CASCADE)
-    status = models.CharField(max_length=50, choices=[
+    job = models.ForeignKey(DjangoJob, verbose_name='任务', on_delete=models.CASCADE)
+    status = models.CharField('状态', max_length=50, choices=[
         [x, x]
         for x in [ADDED, SENT, MAX_INSTANCES, MISSED, MODIFIED,
                   REMOVED, ERROR, SUCCESS]
     ])
-    run_time = models.DateTimeField(db_index=True)
-    duration = models.DecimalField(max_digits=15, decimal_places=2,
+    run_time = models.DateTimeField('运行时间', db_index=True)
+    duration = models.DecimalField('平均时长', max_digits=15, decimal_places=2,
                                    default=None, null=True)
 
-    started = models.DecimalField(max_digits=15, decimal_places=2,
+    started = models.DecimalField('开始时间', max_digits=15, decimal_places=2,
                                   default=None, null=True)
-    finished = models.DecimalField(max_digits=15, decimal_places=2,
+    finished = models.DecimalField('结束时间', max_digits=15, decimal_places=2,
                                    default=None, null=True)
 
-    exception = models.CharField(max_length=1000, null=True)
-    traceback = models.TextField(null=True)
+    exception = models.CharField('错误描述', max_length=1000, null=True)
+    traceback = models.TextField('错误回溯', null=True)
 
     def html_status(self):
         m = {
@@ -117,6 +116,7 @@ class DjangoJobExecution(models.Model):
             m[self.status],
             self.status
         ))
+    html_status.short_description = '状态'
 
     def __unicode__(self):
         return "Execution id={}, status={}, job={}".format(
@@ -125,3 +125,5 @@ class DjangoJobExecution(models.Model):
 
     class Meta:
         ordering = ('-run_time', )
+        verbose_name = '任务记录'
+        verbose_name_plural = '任务记录'

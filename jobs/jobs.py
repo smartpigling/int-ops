@@ -18,4 +18,3 @@ def test_job():
 register_events(scheduler)
 
 scheduler.start()
-print("Scheduler started!")
