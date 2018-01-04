@@ -77,7 +77,7 @@ class EmailJobAdmin(admin.ModelAdmin):
             scheduler.add_job(exp_oracle_script_job, 
                                 obj.trigger_type, 
                                 id=obj.name, 
-                                next_run_time=obj.next_run_time
+                                # next_run_time=obj.next_run_time,
                                 **kwargs)
 
 
