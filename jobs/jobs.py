@@ -6,6 +6,7 @@ import xlwt
 import smtplib
 import json
 import logging
+import traceback 
 # import cx_Oracle
 from datetime import datetime
 from django.db import connections
@@ -27,8 +28,9 @@ LOGGER = logging.getLogger("jobs")
 
 
 def exp_oracle_script_job(job):
+    _exp_dir = 'exports%s%s' % (os.path.sep, datetime.now().strftime('%Y%m%d%H%M%S'))
 
-    _exp_dir = 'exports/%s' % datetime.now().strftime('%Y%m%d%H%M%S')
+    os.makedirs(os.path.join(os.path.join(BASE_DIR, _exp_dir)))
 
     files = job.script_files.all()
 
@@ -40,12 +42,13 @@ def exp_oracle_script_job(job):
 
         for f in files:
             try:
-                f_name, f_ext = os.path.splitext(str(f.script_file))
+                f_path, f_ename = os.path.split(str(f.script_file))
+                f_name, f_ext = os.path.splitext(f_ename)
                 cursor = conn.cursor()
-                cursor.execute(f.read())
+                # cursor.execute(f.script_file.read())
+                cursor.execute('select * from jobs_djangojob')
                 fields = cursor.description
                 results = cursor.fetchall()
-
                 workbook = xlwt.Workbook()
                 sheet = workbook.add_sheet(f_name,cell_overwrite_ok=True)
                 for field in range(0, len(fields)):
@@ -56,10 +59,12 @@ def exp_oracle_script_job(job):
                         sheet.write(row, col, u'%s' % results[row-1][col])        
                 workbook.save(os.path.join(os.path.join(BASE_DIR, _exp_dir), '%s.xls' % f_name))
             except (Exception) as e:
+                traceback.print_exc()
                 LOGGER.error('The Script [%s] Error: %s' % (f_name, e))
             finally:
                 cursor.close()
     except (Exception) as e:
+        traceback.print_exc()
         LOGGER.error('The DB Conn Error: %s' % e)
     else:
         msg = MIMEMultipart()
@@ -67,6 +72,7 @@ def exp_oracle_script_job(job):
             if file_name.find('.xls') == -1:
                 continue
             exp_file = os.path.join(os.path.join(os.path.join(BASE_DIR, _exp_dir), file_name))
+            print(exp_file)
             #xlsx类型附件 
             att = MIMEText(open(exp_file,'rb').read(),'base64','gb2312')
             att["Content-Type"] = 'application/octet-stream'
@@ -87,6 +93,7 @@ def exp_oracle_script_job(job):
             server.send_message(msg)
             server.close()       
         except (Exception) as e:
+            traceback.print_exc()
             LOGGER.error('The Email Send Error: %s' % e)
     finally:
         conn.close()

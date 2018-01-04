@@ -1,6 +1,5 @@
 import logging
 import pickle
-
 from apscheduler import events
 from apscheduler.events import JobExecutionEvent, JobSubmissionEvent
 from apscheduler.job import Job
@@ -63,6 +62,7 @@ class DjangoJobStore(BaseJobStore):
             next_run_time=serialize_dt(job.next_run_time),
             job_state=pickle.dumps(job.__getstate__(), self.pickle_protocol)
         )
+
 
     def update_job(self, job):
         updated = DjangoJob.objects.filter(name=job.id).update(

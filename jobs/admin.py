@@ -15,6 +15,10 @@ from .jobs import scheduler, exp_oracle_script_job
 admin.site.site_header = '内部运维系统'
 admin.site.site_title = '内部运维系统'
 
+def parser_date(arg):
+    return {'run_date': datetime.datetime.strptime('2017/12/12/12/12', '%Y/%m/%d/%H/%M')}
+
+
 class EmailJobForm(forms.ModelForm):
 
     class Meta:
@@ -71,14 +75,19 @@ class EmailJobAdmin(admin.ModelAdmin):
 
     def start_job(self, request, queryset):
         for obj in queryset:
-            kwargs = {}
-            if obj.trigger_type == 'cron':
-                kwargs.update(json.loads(obj.trigger_value))
+            kwargs = {'run_date' : datetime.date(2018, 1, 6)}
+            # if obj.trigger_type == 'cron':
+            #     kwargs.update(json.loads(obj.trigger_value))
+            # else:
+            #     kwargs.update(parser_date(obj.next_run_time))
+
             scheduler.add_job(exp_oracle_script_job, 
-                                obj.trigger_type, 
+                                'interval', 
                                 id=obj.name, 
+                                seconds=10,
                                 # next_run_time=obj.next_run_time,
-                                **kwargs)
+                                args=(obj,)
+                                )
 
 
     start_job.short_description = '启动任务'
@@ -89,13 +98,7 @@ class EmailJobAdmin(admin.ModelAdmin):
 
 
 
-def execute_now(ma, r, qs):
-    for item in qs:
-        item.next_run_time = now()
-        item.save()
 
-
-execute_now.short_description = "Force tasks to execute right now"
 
 
 @admin.register(DjangoJobExecution)
