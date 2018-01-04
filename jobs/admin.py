@@ -1,3 +1,5 @@
+import os
+import json
 import datetime
 from django.contrib import admin
 from django.db import models
@@ -6,6 +8,8 @@ from django import forms
 from .models import EmailJob, ScriptFile, DjangoJob, DjangoJobExecution
 from django.db.models import Avg
 from django.utils.timezone import now
+from .jobs import scheduler, exp_oracle_script_job
+
 
 
 admin.site.site_header = '内部运维系统'
@@ -66,9 +70,16 @@ class EmailJobAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     def start_job(self, request, queryset):
-        # scheduler.add_job(test_job, 'interval', seconds=1, id='test_email_job')
-        # queryset.update(status=True)
-        pass
+        for obj in queryset:
+            kwargs = {}
+            if obj.trigger_type == 'cron':
+                kwargs.update(json.loads(obj.trigger_value))
+            scheduler.add_job(exp_oracle_script_job, 
+                                obj.trigger_type, 
+                                id=obj.name, 
+                                next_run_time=obj.next_run_time
+                                **kwargs)
+
 
     start_job.short_description = '启动任务'
 

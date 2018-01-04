@@ -22,15 +22,25 @@ class DjangoJob(models.Model):
 
 class EmailJob(DjangoJob):
     TRIGGER_TYPE = (
-        ('d', '时间类型(一次执行)'),
-        ('i', '循环类型(多次执行)'),
-        ('c', '任意类型')
+        ('date', '时间类型(仅执行一次)'),
+        # ('interval', '循环类型(指定时间间隔周期执行)'),
+        ('cron', 'cron风格(周期性执行)')
     )
     # job_name = models.CharField('任务名称', max_length=255, unique=True)
     created_date = models.DateTimeField('创建时间', default=timezone.now)
     #Trigger
-    trigger_type = models.CharField('触发类型', max_length=1, choices=TRIGGER_TYPE)
-    trigger_value = models.CharField('触发时间', max_length=100)
+    trigger_type = models.CharField('触发类型', max_length=10, choices=TRIGGER_TYPE)
+    trigger_value = models.CharField('触发参数', max_length=100, null=True, blank=True, help_text="""
+        <strong>cron风格(周期性执行)参数:</strong><br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; year (int|str) – 4-digit year<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; month (int|str) – month (1-12)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; day (int|str) – day of the (1-31)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; week (int|str) – ISO week (1-53)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; day_of_week (int|str) – number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; hour (int|str) – hour (0-23)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; minute (int|str) – minute (0-59)<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp; second (int|str) – second (0-59)<br/>
+    """)
     #DB
     conn_str = models.CharField('目标数据库连接', max_length=100)
     #Email
@@ -61,7 +71,7 @@ class EmailJob(DjangoJob):
 
 class ScriptFile(models.Model):
     script_file = models.FileField('数据库脚本', upload_to='scripts/%Y%m%d%H%M%S/')
-    email_job = models.ForeignKey(EmailJob, on_delete=models.CASCADE, related_name='email_jobs')
+    email_job = models.ForeignKey(EmailJob, on_delete=models.CASCADE, related_name='script_files')
 
     class Meta:
         verbose_name = '执行脚本'
