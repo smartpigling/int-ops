@@ -15,15 +15,12 @@ from .jobs import scheduler, exp_oracle_script_job
 admin.site.site_header = '内部运维系统'
 admin.site.site_title = '内部运维系统'
 
-def parser_date(arg):
-    return {'run_date': datetime.datetime.strptime('2017/12/12/12/12', '%Y/%m/%d/%H/%M')}
-
 
 class EmailJobForm(forms.ModelForm):
 
     class Meta:
         model = EmailJob
-        exclude = ['created_date', 'user']
+        exclude = ['created_date', 'trigger_type', 'user']
         widgets = {
             'sender_pass' : forms.PasswordInput()
         }
@@ -43,13 +40,40 @@ class ScriptInline(admin.StackedInline):
 
 @admin.register(EmailJob)
 class EmailJobAdmin(admin.ModelAdmin):
-    list_display = ('name', 'next_run_time_sec', 'average_duration', 'full_name',)
+    list_display = ('name', 'created_date', 'full_name','subject')
     search_fields = ('name',)
     form = EmailJobForm
 
     inlines = (ScriptInline,)
     actions = ('start_job',)
 
+
+    def save_model(self, request, obj, form, change):
+        obj.user = request.user
+        super().save_model(request, obj, form, change)
+
+    def start_job(self, request, queryset):
+        for obj in queryset:
+            kwargs = json.loads(obj.trigger_value)
+            scheduler.add_job(exp_oracle_script_job, 
+                                'cron', 
+                                id=obj.name,
+                                args=(obj,),
+                                **kwargs
+                                )
+
+
+    start_job.short_description = '启动任务'
+
+    formfield_overrides = {
+        models.CharField: {'widget': forms.TextInput(attrs={'size': '100'})},
+    }
+
+
+@admin.register(DjangoJob)
+class DjangoJobAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "next_run_time_sec", "average_duration"]
+    actions = []
 
     def get_queryset(self, request):
         self._durations = {
@@ -63,41 +87,11 @@ class EmailJobAdmin(admin.ModelAdmin):
 
     def next_run_time_sec(self, obj):
         return obj.next_run_time.strftime('%Y-%m-%d %H:%M:%S')
-    next_run_time_sec.short_description = '执行时间'
+    next_run_time_sec.short_description = '下次执行'
 
     def average_duration(self, obj):
         return self._durations.get(obj.id) or 0
     average_duration.short_description = '两日内平均执行时长(S)'    
-
-    def save_model(self, request, obj, form, change):
-        obj.user = request.user
-        super().save_model(request, obj, form, change)
-
-    def start_job(self, request, queryset):
-        for obj in queryset:
-            kwargs = {'run_date' : datetime.date(2018, 1, 6)}
-            # if obj.trigger_type == 'cron':
-            #     kwargs.update(json.loads(obj.trigger_value))
-            # else:
-            #     kwargs.update(parser_date(obj.next_run_time))
-
-            scheduler.add_job(exp_oracle_script_job, 
-                                'interval', 
-                                id=obj.name, 
-                                seconds=10,
-                                # next_run_time=obj.next_run_time,
-                                args=(obj,)
-                                )
-
-
-    start_job.short_description = '启动任务'
-
-    formfield_overrides = {
-        models.CharField: {'widget': forms.TextInput(attrs={'size': '100'})},
-    }
-
-
-
 
 
 

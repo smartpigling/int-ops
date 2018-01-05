@@ -18,7 +18,7 @@ class DjangoJob(models.Model):
 
     class Meta:
         verbose_name = '任务'
-        verbose_name_plural = '任务列表'
+        verbose_name_plural = '启动列表'
         ordering = ('next_run_time', )
 
 
@@ -87,7 +87,7 @@ class EmailJob(models.Model):
         ('cron', 'cron风格(周期性执行)')
     )
     name = models.CharField('任务名称', max_length=255, unique=True)  # id of job
-    next_run_time = models.DateTimeField('执行时间', db_index=True)
+    # next_run_time = models.DateTimeField('执行时间', db_index=True)
     created_date = models.DateTimeField('创建时间', default=timezone.now)
     #Trigger
     trigger_type = models.CharField('触发类型', max_length=10, choices=TRIGGER_TYPE)
@@ -125,11 +125,10 @@ class EmailJob(models.Model):
     class Meta:
         verbose_name = '任务'
         verbose_name_plural = '任务设置'
-        ordering = ('next_run_time', )
+        ordering = ('created_date', )
 
     def __str__(self):
-        status = '执行时间: %s' % self.next_run_time if self.next_run_time else '暂停'
-        return '%s (%s)' % (self.name, status)
+        return self.name
 
 
 class ScriptFile(models.Model):
